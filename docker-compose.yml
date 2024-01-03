@@ -1,0 +1,16 @@
+version: '3.7'                             # Используем версию 3.7 для лучшей поддержки и функциональности
+
+services:
+  app:
+    container_name: evgenykolotov.ru
+    build:
+      context: .                           # Контекст сборки – текущая директория
+    ports:
+      - "80:80"                            # Маппинг порта 80 с хоста на порт 80 в контейнере (HTTP)
+      - "443:443"                          # Маппинг порта 443 с хоста на порт 443 в контейнере (HTTPS)
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt  # Подключение каталога с сертификатами Let's Encrypt
+      - ./nginx.conf:/etc/nginx/nginx.conf # Подключение кастомного файла конфигурации Nginx
+      - ./public:/app/public               # Подключение папки public для статических файлов приложения
+    environment:
+      - NODE_ENV=production                # Установка переменной окружения NODE_ENV для Node.js приложения

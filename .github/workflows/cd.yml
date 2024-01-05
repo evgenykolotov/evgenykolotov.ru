@@ -1,0 +1,77 @@
+name: Continuous Delivery
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  install-dependencies:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    outputs:
+      cache-hit: ${{ steps.cache-dependencies.outputs.cache-hit }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Node.js modules
+        id: cache-dependencies
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies if cache missed
+        if: steps.cache-dependencies.outputs.cache-hit != 'true'
+        run: npm install
+
+  lint:
+    needs: install-dependencies
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Node.js modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Run linter
+        run: npm run lint
+
+  deploy:
+    needs: [install-dependencies, lint]
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Server using SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          rm: true
+          source: '.'
+          target: ~/evgenykolotov.ru/
+          host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SERVER_PORT }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          username: ${{ secrets.SERVER_USERNAME }}
+
+      - name: Executing remote ssh commands
+        uses: appleboy/ssh-action@v1.0.2
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SERVER_PORT }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          envs: $SERVER_PATH
+          script: |
+            cd ~/evgenykolotov.ru
+            docker-compose -f docker-compose.yml up -d --build
